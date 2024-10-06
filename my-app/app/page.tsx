@@ -11,7 +11,7 @@ Welcome superiamo
 
 			<Link href="/user/signup">
 				<button className="bg-blue-600 px-20 py-5 rounded-full font-bold text-2xl cursor-pointer hover:opacity-80">
-					Count me in
+					next step
 				</button>
 			</Link>
 		</div>
