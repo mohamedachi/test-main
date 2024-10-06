@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
+import { supabase } from '../../../utils/supabase/supabaseclient'; // Import the Supabase client
 import { FaAngleLeft } from 'react-icons/fa6';
+import axios from 'axios';
 
 // Haversine formula to calculate distance between two geographical points
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -26,13 +27,14 @@ async function validateAddress(adresse: string) {
 	const parisLon = 2.3522;
 
 	try {
-		const response = await axios.get(`https://api-adresse.data.gouv.fr/search/?q=${adresse}`);
-		if (response.data.features.length === 0) {
+		const response = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${adresse}`);
+		const data = await response.json();
+		if (data.features.length === 0) {
 			return { valid: false, message: 'Adresse non trouvée.' };
 		}
 
 		// Get latitude and longitude from the API response
-		const [lon, lat] = response.data.features[0].geometry.coordinates;
+		const [lon, lat] = data.features[0].geometry.coordinates;
 		const distance = haversineDistance(lat, lon, parisLat, parisLon);
 
 		if (distance <= 50) {
@@ -53,8 +55,8 @@ export default function SignUpPage() {
 		nom: '',
 		prenom: '',
 		email: '',
-		dateNaissance: '',  // Date will be handled as a string but should be in date format.
-		telephone: '',  // Store the telephone as a string to accommodate leading zeros.
+		dateNaissance: '',
+		telephone: '',
 		adresse: '',
 		password: '',
 	});
@@ -62,8 +64,8 @@ export default function SignUpPage() {
 	const [buttonDisabled, setButtonDisabled] = useState(true);
 	const [loading, setLoading] = useState(false);
 	const [addressError, setAddressError] = useState('');
-
-	const onSignUp = async () => {
+	
+	const onSignUp2 = async () => {
 		try {
 			setLoading(true);
 			const { valid, message } = await validateAddress(user.adresse);
@@ -96,9 +98,50 @@ export default function SignUpPage() {
 		}
 	};
 	
+	const onSignUp = async () => {
+		try {
+			setLoading(true);
+			const { valid, message } = await validateAddress(user.adresse);
+	
+			if (!valid) {
+				setAddressError(message);
+				setLoading(false);
+				return;
+			}
+	
+			setAddressError(''); // Clear address error if valid
+	
+			// Supabase sign up
+			const { data, error } = await supabase.auth.signUp({
+				email: user.email,
+				password: user.password,
+				options: {
+					data: {
+						nom: user.nom,
+						prenom: user.prenom,
+						dateNaissance: user.dateNaissance,
+						telephone: user.telephone,
+						adresse: user.adresse,
+					},
+				},
+			});
+
+			if (error) {
+				console.log('Failed to sign up the user', error.message);
+				setLoading(false);
+				return;
+			}
+
+			console.log('signup okay', data);
+			router.push('/user/login');
+		} catch (error: any) {
+			console.log('Failed to sign up the user', error.message);
+		} finally {
+			setLoading(false);
+		}
+	};
 	
 	useEffect(() => {
-		// Check if all required fields are filled in
 		if (
 			user.nom.length > 0 &&
 			user.prenom.length > 0 &&
@@ -120,7 +163,7 @@ export default function SignUpPage() {
 				{loading ? 'attendre...' : 's inscrire'}
 				
 			</h1>
-
+		
 			{/* Input Fields */}
 			<input
 				className="w-[350px] text-slate-800 p-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:border-gray-600"
@@ -193,12 +236,11 @@ export default function SignUpPage() {
 
 			{/* Submit Button */}
 			<button
-				onClick={onSignUp}
+				onClick={onSignUp2}
 				className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-gray-600 uppercase px-40 py-3 mt-10 font-bold"
 				disabled={buttonDisabled}>
 				{loading ? 'Signing Up...' : 's inscrire'}
 			</button>
-
 			<Link href="/user/login">
 				<p className="mt-10">
 					deja un client ?{' '}

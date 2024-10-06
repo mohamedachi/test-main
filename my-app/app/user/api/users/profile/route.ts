@@ -2,10 +2,12 @@ import { JwtPayload } from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToMongoDB } from '@/dbConfig/dbconfig';
-import User from '@/models/userModel';
+import { createClient } from '@supabase/supabase-js';
 
-connectToMongoDB();
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Ensure the JWT secret is defined
 const JWT_SECRET = process.env.TOKEN_SECRET;
@@ -45,37 +47,54 @@ export async function PUT(request: NextRequest) {
         if (typeof decoded === 'object' && 'email' in decoded) {
             const { email } = decoded as JwtPayload;
 
-            // Find the user by the email from the JWT
-            const user = await User.findOne({ email });
-            if (!user) {
-                console.error('User  not found for email:', email);
-                return NextResponse.json({ error: 'User  not found' }, { status: 404 });
+            // 1- Find the user by the email from the JWT in Supabase
+            const { data: user, error: userError } = await supabase
+                .from('users')  // Assuming your table is named 'users'
+                .select('*')
+                .eq('email', email)
+                .single();  // Get a single user
+
+            if (userError || !user) {
+                console.error('User not found for email:', email);
+                return NextResponse.json({ error: 'User not found' }, { status: 404 });
             }
 
-            // Grab data from the request body
+            // 2- Grab data from the request body
             const reqBody = await request.json();
             const { nom, prenom, datenaissance, telephone, adresse, password } = reqBody;
 
-            // Update user fields if provided
-            user.nom = nom || user.nom;
-            user.prenom = prenom || user.prenom;
-            user.datenaissance = datenaissance || user.datenaissance;
-            user.telephone = telephone || user.telephone;
-            user.adresse = adresse || user.adresse;
+            // 3- Update user fields if provided
+            const updates: any = {
+                nom: nom || user.nom,
+                prenom: prenom || user.prenom,
+                datenaissance: datenaissance || user.datenaissance,
+                telephone: telephone || user.telephone,
+                adresse: adresse || user.adresse,
+            };
 
-            // If a new password is provided, hash it before saving
+            // 4- If a new password is provided, hash it before updating
             if (password) {
                 const salt = await bcryptjs.genSalt(10);
-                user.password = await bcryptjs.hash(password, salt);
+                const hashedPassword = await bcryptjs.hash(password, salt);
+                updates.password = hashedPassword;
             }
 
-            // Save the updated user
-            const updatedUser  = await user.save();
+            // 5- Update the user in Supabase
+            const { data: updatedUser, error: updateError } = await supabase
+                .from('users')
+                .update(updates)
+                .eq('email', email)
+                .single();
+
+            if (updateError) {
+                console.error('Error updating user:', updateError.message);
+                return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+            }
 
             return NextResponse.json({
-                message: 'User  updated successfully!',
+                message: 'User updated successfully!',
                 success: true,
-                updatedUser ,
+                updatedUser,
             });
         } else {
             console.error('Token does not contain an email');

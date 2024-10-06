@@ -1,29 +1,28 @@
-
-import bcryptjs from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-
 import { NextRequest, NextResponse } from 'next/server';
 
-import { connectToMongoDB } from '@/dbConfig/dbconfig';
-import User from '@/models/userModel';
+import bcryptjs from 'bcryptjs';
+import { supabase } from '@/utils/supabase/supabaseclient';
 
-connectToMongoDB();
-
-// POST route (Create a new user inside the DB)
+// POST route (Create a new user inside Supabase)
 export async function POST(request: NextRequest) {
 	try {
 		// grab data from body
 		const reqBody = await request.json();
 
 		// destructure the incoming variables
-		const { nom,prenom, email,datenaissance,telephone, adresse, password, } = reqBody;
+		const { nom, prenom, email, datenaissance, telephone, adresse, password } = reqBody;
 
 		// REMOVE IN PRODUCTION
 		console.log(reqBody);
 
-		const user = await User.findOne({ email });
+		// Check if user already exists
+		const { data: existingUser, error: userFetchError } = await supabase
+			.from('users')
+			.select('*')
+			.eq('email', email)
+			.single();
 
-		if (user) {
+		if (existingUser) {
 			return NextResponse.json(
 				{
 					error: 'This user already exists',
@@ -32,28 +31,34 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// hash password
+		// Hash password
 		const salt = await bcryptjs.genSalt(10);
 		const hashedPassword = await bcryptjs.hash(password, salt);
 
-		// create a new user
-		const newUser = new User({
-			nom,
-			prenom,
-			email,
-			datenaissance,
-			telephone,
-			adresse,
-			password: hashedPassword,
-		});
+		// Create a new user in Supabase
+		const { data: newUser, error: insertError } = await supabase
+			.from('users')
+			.insert([
+				{
+					nom,
+					prenom,
+					email,
+					datenaissance,
+					telephone,
+					adresse,
+					password: hashedPassword,
+				},
+			])
+			.single();
 
-		// save it inside the DB
-		const savedUser = await newUser.save();
+		if (insertError) {
+			throw new Error(insertError.message);
+		}
 
 		return NextResponse.json({
 			message: 'User created!',
 			success: true,
-			savedUser,
+			newUser,
 		});
 	} catch (error: any) {
 		return NextResponse.json({ error: error.message }, { status: 500 });
