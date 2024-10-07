@@ -1,8 +1,13 @@
 # test
  
- **add:** `.env.local`. file
- **install:** `npm install npm install @supabase/supabase-js npm install @supabase/ssr`.
- **run:** `npm run build`
+ -**add:** `.env.local`. file
+
+ 
+ -**install:** `npm install npm install @supabase/supabase-js npm install @supabase/ssr`.
+ 
+ 
+ 
+ -**run:** `npm run build`
  <h1 align="center">salut 👋, je suis Mohamed Achi</h1>
 <h3 align="center">developpeur mobile</h3>
 
